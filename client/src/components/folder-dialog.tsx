@@ -6,7 +6,16 @@ import { Label } from "@/components/ui/label";
 import { useCreateFolder, useUpdateFolder, useDeleteFolder } from "@/hooks/use-folders";
 import type { Folder } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2 } from "lucide-react";
+import { Trash2, Laptop, Globe, MessageSquare, Terminal as TerminalIcon, Sparkles } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const COMMON_APPS = [
+  { name: "VS Code", icon: TerminalIcon },
+  { name: "Chrome", icon: Globe },
+  { name: "Slack", icon: MessageSquare },
+  { name: "Terminal", icon: Laptop },
+  { name: "ChatGPT", icon: Sparkles },
+];
 
 interface FolderDialogProps {
   open: boolean;
@@ -27,10 +36,10 @@ export function FolderDialog({ open, onOpenChange, folderToEdit, onSuccess }: Fo
   useEffect(() => {
     if (folderToEdit) {
       setName(folderToEdit.name);
-      setTargetApp(folderToEdit.targetApp || "");
+      setTargetApp(folderToEdit.targetApp || "none");
     } else {
       setName("");
-      setTargetApp("");
+      setTargetApp("none");
     }
   }, [folderToEdit, open]);
 
@@ -39,17 +48,18 @@ export function FolderDialog({ open, onOpenChange, folderToEdit, onSuccess }: Fo
     if (!name.trim()) return;
 
     try {
+      const appValue = targetApp === "none" ? null : targetApp;
       if (folderToEdit) {
         await updateFolder.mutateAsync({ 
           id: folderToEdit.id, 
           name, 
-          targetApp: targetApp.trim() || undefined 
+          targetApp: appValue
         });
         toast({ title: "Folder updated" });
       } else {
         await createFolder.mutateAsync({ 
           name, 
-          targetApp: targetApp.trim() || undefined 
+          targetApp: appValue
         });
         toast({ title: "Folder created" });
       }
@@ -98,14 +108,23 @@ export function FolderDialog({ open, onOpenChange, folderToEdit, onSuccess }: Fo
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="targetApp">Target App (Optional)</Label>
-            <Input
-              id="targetApp"
-              placeholder="e.g. VS Code, Chrome"
-              value={targetApp}
-              onChange={(e) => setTargetApp(e.target.value)}
-              className="bg-background/50 focus-visible:ring-primary/50"
-            />
+            <Label htmlFor="targetApp">Target App</Label>
+            <Select value={targetApp} onValueChange={setTargetApp}>
+              <SelectTrigger className="bg-background/50 focus:ring-primary/50">
+                <SelectValue placeholder="Select an application" />
+              </SelectTrigger>
+              <SelectContent className="glass-panel">
+                <SelectItem value="none">No specific app</SelectItem>
+                {COMMON_APPS.map((app) => (
+                  <SelectItem key={app.name} value={app.name}>
+                    <div className="flex items-center gap-2">
+                      <app.icon className="h-4 w-4 text-muted-foreground" />
+                      {app.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               Hotkeys will auto-select this folder when the app is focused.
             </p>
