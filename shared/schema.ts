@@ -1,44 +1,91 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const folders = pgTable("folders", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  targetApp: text("target_app"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const folderSchema = z.object({
+  id: z.number().int(),
+  name: z.string().min(1),
+  linkedAppExecutable: z.string().nullable(),
+  linkedAppDisplayName: z.string().nullable(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
 });
 
-export const entries = pgTable("entries", {
-  id: serial("id").primaryKey(),
-  folderId: integer("folder_id").references(() => folders.id, { onDelete: 'cascade' }).notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+export const snippetSchema = z.object({
+  id: z.number().int(),
+  folderId: z.number().int(),
+  title: z.string().min(1),
+  content: z.string(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
 });
 
-export const foldersRelations = relations(folders, ({ many }) => ({
-  entries: many(entries),
-}));
+export const settingsSchema = z.object({
+  globalHotkey: z.string().min(1),
+  launchAtLogin: z.boolean(),
+  focusDelayMs: z.number().int().min(0).max(2000),
+  restoreClipboardAfterPaste: z.boolean(),
+});
 
-export const entriesRelations = relations(entries, ({ one }) => ({
-  folder: one(folders, {
-    fields: [entries.folderId],
-    references: [folders.id],
-  }),
-}));
+export const runningAppSchema = z.object({
+  executableName: z.string().min(1),
+  displayName: z.string().min(1),
+  windowTitle: z.string().nullable(),
+});
 
-export const insertFolderSchema = createInsertSchema(folders).omit({ id: true, createdAt: true });
-export const insertEntrySchema = createInsertSchema(entries).omit({ id: true, createdAt: true });
+export const pickerContextSchema = z.object({
+  matchedFolderId: z.number().int().nullable(),
+  focusedApp: runningAppSchema.nullable(),
+  launchedAt: z.number().int(),
+});
 
-export type Folder = typeof folders.$inferSelect;
-export type InsertFolder = z.infer<typeof insertFolderSchema>;
+export const pickerPayloadSchema = z.object({
+  context: pickerContextSchema,
+  folders: z.array(folderSchema),
+  snippets: z.array(snippetSchema),
+});
 
-export type Entry = typeof entries.$inferSelect;
-export type InsertEntry = z.infer<typeof insertEntrySchema>;
+export const pasteResultSchema = z.object({
+  success: z.boolean(),
+  usedManualFallback: z.boolean(),
+  clipboardRestored: z.boolean(),
+  failureReason: z.string().nullable(),
+});
 
-export type CreateFolderRequest = InsertFolder;
-export type UpdateFolderRequest = Partial<InsertFolder>;
-export type CreateEntryRequest = InsertEntry;
-export type UpdateEntryRequest = Partial<InsertEntry>;
+export const createFolderInputSchema = z.object({
+  name: z.string().trim().min(1, "Folder name is required."),
+  linkedAppExecutable: z.string().trim().min(1).nullable().optional(),
+  linkedAppDisplayName: z.string().trim().min(1).nullable().optional(),
+});
+
+export const updateFolderInputSchema = createFolderInputSchema.extend({
+  id: z.number().int(),
+});
+
+export const createSnippetInputSchema = z.object({
+  folderId: z.number().int(),
+  title: z.string().trim().min(1, "Snippet title is required."),
+  content: z.string().min(1, "Snippet content is required."),
+});
+
+export const updateSnippetInputSchema = createSnippetInputSchema.extend({
+  id: z.number().int(),
+});
+
+export const updateSettingsInputSchema = settingsSchema;
+
+export const pasteSnippetInputSchema = z.object({
+  content: z.string(),
+});
+
+export type Folder = z.infer<typeof folderSchema>;
+export type Snippet = z.infer<typeof snippetSchema>;
+export type AppSettings = z.infer<typeof settingsSchema>;
+export type RunningApp = z.infer<typeof runningAppSchema>;
+export type PickerContext = z.infer<typeof pickerContextSchema>;
+export type PickerPayload = z.infer<typeof pickerPayloadSchema>;
+export type PasteResult = z.infer<typeof pasteResultSchema>;
+export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
+export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
+export type CreateSnippetInput = z.infer<typeof createSnippetInputSchema>;
+export type UpdateSnippetInput = z.infer<typeof updateSnippetInputSchema>;
+export type UpdateSettingsInput = z.infer<typeof updateSettingsInputSchema>;
+export type PasteSnippetInput = z.infer<typeof pasteSnippetInputSchema>;

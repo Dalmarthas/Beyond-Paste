@@ -1,123 +1,121 @@
-import { useState } from "react";
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarGroup, 
-  SidebarGroupLabel, 
-  SidebarMenu, 
-  SidebarMenuButton, 
+import { useMemo, useState } from "react";
+import {
+  Folder as FolderIcon,
+  Hash,
+  MoreVertical,
+  Plus,
+  Settings2,
+  Sparkles,
+  Keyboard,
+} from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarHeader,
-  SidebarFooter
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { useFolders } from "@/hooks/use-folders";
-import { useEntries } from "@/hooks/use-entries";
-import { Folder, Search, Plus, Settings2, Command as CmdIcon, Hash, MoreVertical } from "lucide-react";
-import { FolderDialog } from "@/components/folder-dialog";
-import { EntryDialog } from "@/components/entry-dialog";
-import { EntryCard } from "@/components/entry-card";
-import { CommandPalette } from "@/components/command-palette";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { Folder as FolderType, Entry } from "@shared/schema";
-import { AnimatePresence } from "framer-motion";
+import { BrandLogo } from "@/components/brand-logo";
+import { EntryCard } from "@/components/entry-card";
+import { EntryDialog } from "@/components/entry-dialog";
+import { FolderDialog } from "@/components/folder-dialog";
+import { SettingsDialog } from "@/components/settings-dialog";
+import { useEntries } from "@/hooks/use-entries";
+import { useFolders } from "@/hooks/use-folders";
+import { useSettings } from "@/hooks/use-settings";
+import type { Folder, Snippet } from "@shared/schema";
+
+function formatHotkeyLabel(hotkey: string) {
+  return hotkey
+    .split("+")
+    .map((part) => (part === "ctrl" ? "Ctrl" : part === "alt" ? "Alt" : part === "shift" ? "Shift" : part === "space" ? "Space" : part.toUpperCase()))
+    .join(" + ");
+}
 
 export default function Dashboard() {
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-  
-  // Dialog states
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
-  const [folderToEdit, setFolderToEdit] = useState<FolderType | undefined>(undefined);
-  
+  const [folderToEdit, setFolderToEdit] = useState<Folder | undefined>(undefined);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
-  const [entryToEdit, setEntryToEdit] = useState<Entry | undefined>(undefined);
+  const [entryToEdit, setEntryToEdit] = useState<Snippet | undefined>(undefined);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const folders = useFolders();
+  const entries = useEntries(selectedFolderId ?? undefined);
+  const settings = useSettings();
 
-  const { data: folders, isLoading: foldersLoading } = useFolders();
-  const { data: entries, isLoading: entriesLoading } = useEntries(selectedFolderId || undefined);
-
-  const activeFolder = folders?.find(f => f.id === selectedFolderId);
-
-  const openNewFolder = () => {
-    setFolderToEdit(undefined);
-    setFolderDialogOpen(true);
-  };
-
-  const openEditFolder = (folder: FolderType, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFolderToEdit(folder);
-    setFolderDialogOpen(true);
-  };
-
-  const openNewEntry = () => {
-    setEntryToEdit(undefined);
-    setEntryDialogOpen(true);
-  };
-
-  const openEditEntry = (entry: Entry) => {
-    setEntryToEdit(entry);
-    setEntryDialogOpen(true);
-  };
+  const activeFolder = useMemo(
+    () => folders.data?.find((folder) => folder.id === selectedFolderId) ?? null,
+    [folders.data, selectedFolderId],
+  );
 
   const sidebarStyle = {
     "--sidebar-width": "18rem",
     "--sidebar-background": "var(--card)",
-    "--sidebar-border": "rgba(255,255,255,0.05)"
+    "--sidebar-border": "rgba(255,255,255,0.05)",
   } as React.CSSProperties;
 
   return (
     <SidebarProvider style={sidebarStyle}>
       <div className="flex h-screen w-full overflow-hidden">
-        {/* SIDEBAR */}
-        <Sidebar className="border-r border-white/5 backdrop-blur-md bg-black/20">
-          <SidebarHeader className="p-4 flex items-center justify-between border-b border-white/5">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shadow-lg shadow-primary/20">
-                <CommandIcon className="h-4 w-4 text-white" />
+        <Sidebar className="border-r border-white/5 bg-black/20 backdrop-blur-md">
+          <SidebarHeader className="flex items-center justify-between border-b border-white/5 p-4">
+            <div className="flex items-center gap-3">
+              <BrandLogo className="h-11" />
+              <div>
+                <div className="font-display text-lg font-bold tracking-wide text-glow">Beyond Paste</div>
               </div>
-              <span className="font-display font-bold text-lg text-glow tracking-wide">QuickPaste</span>
             </div>
+            <Button variant="ghost" size="icon" onClick={() => setSettingsDialogOpen(true)}>
+              <Settings2 className="h-4 w-4" />
+            </Button>
           </SidebarHeader>
-          
+
           <SidebarContent className="p-2">
             <SidebarGroup>
-              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Collections
+              <SidebarGroupLabel className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Folders
               </SidebarGroupLabel>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    isActive={selectedFolderId === null}
-                    onClick={() => setSelectedFolderId(null)}
-                    className="hover-elevate transition-all"
-                  >
+                  <SidebarMenuButton isActive={selectedFolderId === null} onClick={() => setSelectedFolderId(null)}>
                     <Hash className="h-4 w-4" />
-                    <span>All Phrases</span>
+                    <span>All Snippets</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                
-                {folders?.map((folder) => (
+                {folders.data?.map((folder) => (
                   <SidebarMenuItem key={folder.id}>
                     <SidebarMenuButton
                       isActive={selectedFolderId === folder.id}
                       onClick={() => setSelectedFolderId(folder.id)}
-                      className="group flex justify-between items-center hover-elevate transition-all"
+                      className="group flex items-center justify-between gap-2"
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <Folder className="h-4 w-4 text-primary/80" />
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FolderIcon className="h-4 w-4 text-primary/80" />
                         <span className="truncate">{folder.name}</span>
                       </div>
-                      
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
-                            <MoreVertical className="h-3 w-3" />
+                            <MoreVertical className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="glass-panel">
-                          <DropdownMenuItem onClick={(e) => openEditFolder(folder, e as any)}>
+                          <DropdownMenuItem
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setFolderToEdit(folder);
+                              setFolderDialogOpen(true);
+                            }}
+                          >
                             Edit Folder
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -128,117 +126,135 @@ export default function Dashboard() {
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>
-          
-          <SidebarFooter className="p-4 border-t border-white/5 gap-2">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start glass-card hover:bg-white/10"
-              onClick={openNewFolder}
+
+          <SidebarFooter className="gap-2 border-t border-white/5 p-4">
+            <Button
+              variant="outline"
+              className="glass-card w-full justify-start"
+              onClick={() => {
+                setFolderToEdit(undefined);
+                setFolderDialogOpen(true);
+              }}
             >
               <Plus className="mr-2 h-4 w-4" />
               New Folder
             </Button>
-            <Button 
-              variant="default" 
-              className="w-full justify-between bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 hover-elevate"
-              onClick={() => setCommandPaletteOpen(true)}
-            >
-              <span className="flex items-center"><Search className="mr-2 h-4 w-4" /> Spotlight Mode</span>
-              <kbd className="hidden md:inline-flex h-5 items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 font-mono text-[10px] font-medium text-primary">
-                <span className="text-xs">⌘</span>K
-              </kbd>
-            </Button>
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-3 text-xs text-white/85">
+              <div className="mb-1 flex items-center gap-2 font-medium text-primary/90">
+                <Keyboard className="h-3.5 w-3.5" /> Quick open
+              </div>
+              <div>{settings.data ? formatHotkeyLabel(settings.data.globalHotkey) : "Loading..."}</div>
+            </div>
           </SidebarFooter>
         </Sidebar>
 
-        {/* MAIN CONTENT */}
-        <div className="flex flex-col flex-1 min-w-0 bg-transparent relative">
-          {/* Subtle top glare */}
-          <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          <div className="pointer-events-none absolute left-0 right-0 top-0 h-[420px] bg-gradient-to-b from-primary/10 to-transparent" />
 
-          <header className="flex items-center justify-between px-8 py-6 border-b border-white/5 relative z-10 backdrop-blur-sm">
+          <header className="relative z-10 flex items-start justify-between gap-4 border-b border-white/5 px-8 py-6 backdrop-blur-sm">
             <div>
-              <h1 className="text-3xl font-display font-bold text-foreground">
-                {activeFolder ? activeFolder.name : "All Phrases"}
-              </h1>
-              {activeFolder?.targetApp && (
-                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                  <Settings2 className="h-3 w-3" /> Targeted to: <span className="font-medium text-primary/80">{activeFolder.targetApp}</span>
-                </p>
-              )}
+              <h1 className="text-3xl font-display font-bold text-foreground">{activeFolder?.name ?? "All Snippets"}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {activeFolder?.linkedAppExecutable
+                  ? `Linked to ${activeFolder.linkedAppDisplayName ?? activeFolder.linkedAppExecutable} (${activeFolder.linkedAppExecutable})`
+                  : "Library management window for your reusable prompts, commands, and phrases."}
+              </p>
             </div>
-            <Button 
-              onClick={openNewEntry}
-              className="bg-white text-black hover:bg-white/90 hover-elevate active-elevate-2 font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] rounded-xl px-6"
-            >
-              <Plus className="mr-2 h-4 w-4" /> New Phrase
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="outline" className="glass-card" onClick={() => setSettingsDialogOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" />
+                Settings
+              </Button>
+              <Button
+                onClick={() => {
+                  setEntryToEdit(undefined);
+                  setEntryDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New Snippet
+              </Button>
+            </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
-            {foldersLoading || entriesLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="h-[200px] rounded-2xl bg-white/5 animate-pulse border border-white/10" />
+          <main className="relative z-10 flex-1 overflow-y-auto p-8">
+            {folders.isLoading || entries.isLoading ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {[1, 2, 3, 4].map((item) => (
+                  <div key={item} className="h-48 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
                 ))}
               </div>
-            ) : entries && entries.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+            ) : entries.data && entries.data.length > 0 ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 <AnimatePresence>
-                  {entries.map((entry) => (
-                    <EntryCard key={entry.id} entry={entry} onEdit={openEditEntry} />
+                  {entries.data.map((entry) => (
+                    <EntryCard
+                      key={entry.id}
+                      entry={entry}
+                      onEdit={(value) => {
+                        setEntryToEdit(value);
+                        setEntryDialogOpen(true);
+                      }}
+                    />
                   ))}
                 </AnimatePresence>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto">
-                <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center mb-6 shadow-inner border border-white/10">
-                  <CmdIcon className="h-10 w-10 text-muted-foreground" />
+              <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center rounded-3xl border border-white/10 bg-black/10 px-8 py-12 text-center">
+                <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                  <Sparkles className="h-10 w-10 text-muted-foreground" />
                 </div>
-                <h3 className="text-2xl font-display font-bold mb-2">No phrases yet</h3>
-                <p className="text-muted-foreground mb-8">
-                  {selectedFolderId 
-                    ? "This folder is empty. Add some text snippets or commands you use frequently."
-                    : "Create a folder and add some phrases to get started."}
+                <h2 className="mb-2 text-2xl font-display font-bold">No snippets yet</h2>
+                <p className="mb-8 text-muted-foreground">
+                  {selectedFolderId
+                    ? "This folder is empty. Add prompts or reusable text so it shows up in the popup picker."
+                    : "Create a folder and add your first snippet to start building the library."}
                 </p>
-                <Button 
-                  onClick={openNewEntry} 
-                  variant="outline"
-                  className="glass-card hover:bg-white/10 h-12 px-8 rounded-xl"
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Add your first phrase
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="glass-card"
+                    onClick={() => {
+                      setFolderToEdit(undefined);
+                      setFolderDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Folder
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setEntryToEdit(undefined);
+                      setEntryDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Snippet
+                  </Button>
+                </div>
               </div>
             )}
           </main>
         </div>
       </div>
 
-      {/* Dialogs */}
-      <FolderDialog 
-        open={folderDialogOpen} 
-        onOpenChange={setFolderDialogOpen} 
-        folderToEdit={folderToEdit} 
+      <FolderDialog
+        open={folderDialogOpen}
+        onOpenChange={setFolderDialogOpen}
+        folderToEdit={folderToEdit}
         onSuccess={() => {
-          // If deleted active folder, reset selection
-          if (folderToEdit && !folders?.find(f => f.id === folderToEdit.id)) {
+          if (folderToEdit?.id === selectedFolderId) {
             setSelectedFolderId(null);
           }
         }}
       />
-      <EntryDialog 
-        open={entryDialogOpen} 
-        onOpenChange={setEntryDialogOpen} 
+      <EntryDialog
+        open={entryDialogOpen}
+        onOpenChange={setEntryDialogOpen}
         entryToEdit={entryToEdit}
-        defaultFolderId={selectedFolderId || undefined}
+        defaultFolderId={selectedFolderId ?? undefined}
       />
-      <CommandPalette 
-        open={commandPaletteOpen} 
-        onOpenChange={setCommandPaletteOpen} 
-      />
+      <SettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
     </SidebarProvider>
   );
 }
-
-// Temporary alias for lucide icon to avoid naming conflict
-const CommandIcon = CmdIcon;

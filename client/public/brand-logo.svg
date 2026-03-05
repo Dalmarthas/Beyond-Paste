@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGradient" x1="92" y1="82" x2="392" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF5E87" />
+      <stop offset="0.45" stop-color="#FF255C" />
+      <stop offset="1" stop-color="#D60035" />
+    </linearGradient>
+    <filter id="brandShadow" x="0" y="0" width="512" height="512" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dx="0" dy="14" />
+      <feGaussianBlur stdDeviation="12" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.08 0 0 0 0 0 0 0 0 0 0.04 0 0 0 0.42 0" />
+      <feBlend in2="SourceGraphic" mode="normal" result="shape" />
+    </filter>
+  </defs>
+  <g filter="url(#brandShadow)">
+    <path
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M110 70H258C348 70 408 122 408 202C408 252 384 292 338 318C393 342 424 386 424 444C424 535 354 592 248 592H171L50 720L118 592H110V70ZM182 138V284H252C314 284 352 256 352 210C352 162 316 138 250 138H182ZM182 348V524H242C318 524 366 490 366 434C366 378 320 348 240 348H182Z"
+      transform="scale(0.71) translate(26 20)"
+      fill="url(#brandGradient)"
+    />
+    <path d="M148 364L54 470H134L148 364Z" fill="url(#brandGradient)" />
+    <path d="M186 112H248C306 112 340 142 340 188C340 234 304 262 246 262H186V112Z" fill="#070707" fill-opacity="0.42" />
+    <path d="M186 322H240C314 322 354 354 354 406C354 460 312 494 242 494H186V322Z" fill="#070707" fill-opacity="0.36" />
+    <path d="M148 364L54 470H114L148 364Z" fill="#FF9DB6" fill-opacity="0.2" />
+  </g>
+</svg>

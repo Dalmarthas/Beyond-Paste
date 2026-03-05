@@ -1,22 +1,22 @@
 import { useState } from "react";
-import { Copy, Edit2, Trash2, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { Entry } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
-import { useDeleteEntry } from "@/hooks/use-entries";
+import { CheckCircle2, Copy, Edit2, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { useDeleteEntry } from "@/hooks/use-entries";
+import { useToast } from "@/hooks/use-toast";
+import type { Snippet } from "@shared/schema";
 
 interface EntryCardProps {
-  entry: Entry;
-  onEdit: (entry: Entry) => void;
+  entry: Snippet;
+  onEdit: (entry: Snippet) => void;
 }
 
 export function EntryCard({ entry, onEdit }: EntryCardProps) {
   const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
   const deleteEntry = useDeleteEntry();
+  const { toast } = useToast();
 
-  const handleCopy = async () => {
+  async function handleCopy() {
     try {
       await navigator.clipboard.writeText(entry.content);
       setCopied(true);
@@ -24,42 +24,42 @@ export function EntryCard({ entry, onEdit }: EntryCardProps) {
         title: "Copied to clipboard",
         description: `"${entry.title}" is ready to paste.`,
       });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast({ title: "Failed to copy", variant: "destructive" });
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast({ title: "Copy failed", variant: "destructive" });
     }
-  };
+  }
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm(`Delete "${entry.title}"?`)) {
-      await deleteEntry.mutateAsync(entry.id);
-      toast({ title: "Entry deleted" });
+  async function handleDelete(event: React.MouseEvent) {
+    event.stopPropagation();
+    if (!confirm(`Delete snippet "${entry.title}"?`)) {
+      return;
     }
-  };
+
+    await deleteEntry.mutateAsync(entry.id);
+    toast({ title: "Snippet deleted" });
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      exit={{ opacity: 0, scale: 0.96 }}
       whileHover={{ y: -2 }}
-      className="group relative flex flex-col p-5 rounded-2xl glass-card cursor-pointer overflow-hidden"
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg transition-all duration-300 hover:border-white/20 hover:bg-white/10"
       onClick={handleCopy}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      
-      <div className="flex justify-between items-start mb-3 z-10">
-        <h3 className="font-display font-semibold text-lg text-foreground/90 truncate pr-4">
-          {entry.title}
-        </h3>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+      <div className="relative z-10 mb-3 flex items-start justify-between gap-3">
+        <h3 className="truncate pr-4 font-display text-lg font-semibold text-foreground/90">{entry.title}</h3>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground bg-background/50 hover:bg-background/80"
-            onClick={(e) => {
-              e.stopPropagation();
+            className="h-8 w-8 bg-background/50 text-muted-foreground hover:bg-background/80 hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation();
               onEdit(entry);
             }}
           >
@@ -68,7 +68,7 @@ export function EntryCard({ entry, onEdit }: EntryCardProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive bg-background/50 hover:bg-background/80"
+            className="h-8 w-8 bg-background/50 text-muted-foreground hover:bg-background/80 hover:text-destructive"
             onClick={handleDelete}
             disabled={deleteEntry.isPending}
           >
@@ -77,20 +77,15 @@ export function EntryCard({ entry, onEdit }: EntryCardProps) {
         </div>
       </div>
 
-      <div className="flex-1 relative z-10">
-        <div className="bg-background/40 rounded-lg p-3 border border-white/5 max-h-[100px] overflow-hidden relative">
-          <pre className="text-xs font-mono text-muted-foreground/80 whitespace-pre-wrap line-clamp-3">
-            {entry.content}
-          </pre>
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/80 to-transparent" />
-        </div>
+      <div className="relative z-10 flex-1 rounded-lg border border-white/5 bg-background/40 p-3">
+        <pre className="line-clamp-4 whitespace-pre-wrap text-xs text-muted-foreground/90">{entry.content}</pre>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-xs font-medium text-muted-foreground z-10">
-        <span>Click anywhere to copy</span>
-        <div className={`flex items-center gap-1.5 transition-colors ${copied ? 'text-green-400' : 'text-primary/70'}`}>
+      <div className="relative z-10 mt-4 flex items-center justify-between text-xs font-medium text-muted-foreground">
+        <span>Click to copy</span>
+        <div className={`flex items-center gap-1.5 ${copied ? "text-emerald-400" : "text-primary/70"}`}>
           {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? "Copied" : "Copy"}
         </div>
       </div>
     </motion.div>

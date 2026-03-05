@@ -1,21 +1,14 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
+import { AppWindow, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCreateFolder, useUpdateFolder, useDeleteFolder } from "@/hooks/use-folders";
-import type { Folder } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
-import { Trash2, Laptop, Globe, MessageSquare, Terminal as TerminalIcon, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const COMMON_APPS = [
-  { name: "VS Code", icon: TerminalIcon },
-  { name: "Chrome", icon: Globe },
-  { name: "Slack", icon: MessageSquare },
-  { name: "Terminal", icon: Laptop },
-  { name: "ChatGPT", icon: Sparkles },
-];
+import { useDeleteFolder, useCreateFolder, useUpdateFolder } from "@/hooks/use-folders";
+import { useRunningApps } from "@/hooks/use-running-apps";
+import { useToast } from "@/hooks/use-toast";
+import type { Folder } from "@shared/schema";
 
 interface FolderDialogProps {
   open: boolean;
@@ -25,134 +18,199 @@ interface FolderDialogProps {
 }
 
 export function FolderDialog({ open, onOpenChange, folderToEdit, onSuccess }: FolderDialogProps) {
-  const [name, setName] = useState("");
-  const [targetApp, setTargetApp] = useState("");
-  
   const createFolder = useCreateFolder();
   const updateFolder = useUpdateFolder();
   const deleteFolder = useDeleteFolder();
+  const runningApps = useRunningApps();
   const { toast } = useToast();
 
+  const [name, setName] = useState("");
+  const [linkedExecutable, setLinkedExecutable] = useState("");
+  const [linkedDisplayName, setLinkedDisplayName] = useState("");
+
   useEffect(() => {
-    if (folderToEdit) {
-      setName(folderToEdit.name);
-      setTargetApp(folderToEdit.targetApp || "none");
-    } else {
-      setName("");
-      setTargetApp("none");
+    if (!open) {
+      return;
     }
+
+    setName(folderToEdit?.name ?? "");
+    setLinkedExecutable(folderToEdit?.linkedAppExecutable ?? "");
+    setLinkedDisplayName(folderToEdit?.linkedAppDisplayName ?? "");
+    void runningApps.refetch();
   }, [folderToEdit, open]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const selectedApp = useMemo(() => {
+    return runningApps.data?.find((app) => app.executableName === linkedExecutable) ?? null;
+  }, [linkedExecutable, runningApps.data]);
+
+  const isPending = createFolder.isPending || updateFolder.isPending || deleteFolder.isPending;
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      return;
+    }
+
+    const executable = linkedExecutable.trim() || null;
+    const displayName = executable
+      ? linkedDisplayName.trim() || selectedApp?.displayName || executable.replace(/\.exe$/i, "")
+      : null;
 
     try {
-      const appValue = targetApp === "none" ? null : targetApp;
       if (folderToEdit) {
-        await updateFolder.mutateAsync({ 
-          id: folderToEdit.id, 
-          name, 
-          targetApp: appValue
+        await updateFolder.mutateAsync({
+          id: folderToEdit.id,
+          name: name.trim(),
+          linkedAppExecutable: executable,
+          linkedAppDisplayName: displayName,
         });
         toast({ title: "Folder updated" });
       } else {
-        await createFolder.mutateAsync({ 
-          name, 
-          targetApp: appValue
+        await createFolder.mutateAsync({
+          name: name.trim(),
+          linkedAppExecutable: executable,
+          linkedAppDisplayName: displayName,
         });
         toast({ title: "Folder created" });
       }
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Folder save failed",
+        description: error instanceof Error ? error.message : "Unknown error.",
+        variant: "destructive",
+      });
     }
-  };
+  }
 
-  const handleDelete = async () => {
-    if (!folderToEdit) return;
-    if (!confirm("Are you sure you want to delete this folder and all its entries?")) return;
-    
+  async function handleDelete() {
+    if (!folderToEdit) {
+      return;
+    }
+
+    if (!confirm(`Delete folder "${folderToEdit.name}" and all snippets inside it?`)) {
+      return;
+    }
+
     try {
       await deleteFolder.mutateAsync(folderToEdit.id);
       toast({ title: "Folder deleted" });
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Folder delete failed",
+        description: error instanceof Error ? error.message : "Unknown error.",
+        variant: "destructive",
+      });
     }
-  };
-
-  const isPending = createFolder.isPending || updateFolder.isPending;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass-panel sm:max-w-[425px]">
+      <DialogContent className="glass-panel sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{folderToEdit ? "Edit Folder" : "Create New Folder"}</DialogTitle>
+          <DialogTitle>{folderToEdit ? "Edit Folder" : "Create Folder"}</DialogTitle>
           <DialogDescription>
-            Organize your quick-access phrases. You can tie a folder to a specific app.
+            Link a folder to a Windows app by executable name so the picker can scope itself automatically.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="name">Folder Name</Label>
+            <Label htmlFor="folder-name">Folder name</Label>
             <Input
-              id="name"
-              placeholder="e.g. Codex Prompts"
+              id="folder-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-background/50 focus-visible:ring-primary/50"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Codex prompts"
+              className="bg-background/50"
               autoFocus
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="targetApp">Target App</Label>
-            <Select value={targetApp} onValueChange={setTargetApp}>
-              <SelectTrigger className="bg-background/50 focus:ring-primary/50">
-                <SelectValue placeholder="Select an application" />
+
+          <div className="space-y-2 rounded-2xl border border-white/10 bg-black/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label>Pick from running apps</Label>
+                <p className="text-xs text-muted-foreground">This fills in the executable name for you.</p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => void runningApps.refetch()}>
+                <RefreshCw className={`h-4 w-4 ${runningApps.isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+            <Select
+              value={selectedApp?.executableName ?? "none"}
+              onValueChange={(value) => {
+                if (value === "none") {
+                  setLinkedExecutable("");
+                  setLinkedDisplayName("");
+                  return;
+                }
+                const app = runningApps.data?.find((item) => item.executableName === value);
+                if (app) {
+                  setLinkedExecutable(app.executableName);
+                  setLinkedDisplayName(app.displayName);
+                }
+              }}
+            >
+              <SelectTrigger className="bg-background/50">
+                <SelectValue placeholder="No linked app" />
               </SelectTrigger>
-              <SelectContent className="glass-panel">
-                <SelectItem value="none">No specific app</SelectItem>
-                {COMMON_APPS.map((app) => (
-                  <SelectItem key={app.name} value={app.name}>
-                    <div className="flex items-center gap-2">
-                      <app.icon className="h-4 w-4 text-muted-foreground" />
-                      {app.name}
+              <SelectContent className="glass-panel max-h-72">
+                <SelectItem value="none">No linked app</SelectItem>
+                {runningApps.data?.map((app) => (
+                  <SelectItem key={app.executableName} value={app.executableName}>
+                    <div className="flex flex-col">
+                      <span>{app.displayName}</span>
+                      <span className="text-xs text-muted-foreground">{app.executableName}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Hotkeys will auto-select this folder when the app is focused.
-            </p>
           </div>
-          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+
+          <div className="space-y-2">
+            <Label htmlFor="folder-executable">Executable match</Label>
+            <Input
+              id="folder-executable"
+              value={linkedExecutable}
+              onChange={(event) => setLinkedExecutable(event.target.value)}
+              placeholder="Code.exe"
+              className="bg-background/50"
+            />
+            <p className="text-xs text-muted-foreground">Use the executable name shown in Task Manager, for example `Code.exe` or `Cursor.exe`.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="folder-display-name">Display name</Label>
+            <div className="relative">
+              <AppWindow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="folder-display-name"
+                value={linkedDisplayName}
+                onChange={(event) => setLinkedDisplayName(event.target.value)}
+                placeholder="VS Code"
+                className="bg-background/50 pl-10"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
             {folderToEdit ? (
-              <Button
-                type="button"
-                variant="destructive"
-                size="icon"
-                onClick={handleDelete}
-                disabled={deleteFolder.isPending}
-                className="hover-elevate active-elevate-2"
-              >
+              <Button type="button" variant="destructive" size="icon" onClick={handleDelete} disabled={isPending}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             ) : (
-              <div /> // Spacer
+              <div />
             )}
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                disabled={isPending || !name.trim()}
-                className="bg-primary/90 hover:bg-primary text-primary-foreground hover-elevate active-elevate-2 shadow-lg shadow-primary/20"
-              >
+              <Button type="submit" disabled={!name.trim() || isPending}>
                 {isPending ? "Saving..." : folderToEdit ? "Save Changes" : "Create Folder"}
               </Button>
             </div>

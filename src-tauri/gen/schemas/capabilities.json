@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for Beyond Paste windows.","local":true,"windows":["library","picker"],"permissions":["core:default","autostart:allow-enable","autostart:allow-disable","autostart:allow-is-enabled"]}}
