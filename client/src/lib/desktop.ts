@@ -6,6 +6,7 @@ import {
   folderSchema,
   pasteResultSchema,
   pickerPayloadSchema,
+  quickCaptureDraftSchema,
   runningAppSchema,
   settingsSchema,
   snippetSchema,
@@ -18,6 +19,7 @@ import {
   type Folder,
   type PasteResult,
   type PickerPayload,
+  type QuickCaptureDraft,
   type RunningApp,
   type Snippet,
   type UpdateFolderInput,
@@ -66,6 +68,19 @@ function writeJson<T>(key: string, value: T) {
 
 function now() {
   return Date.now();
+}
+
+function suggestQuickCaptureTitle(content: string) {
+  const firstLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) {
+    return "New snippet";
+  }
+
+  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
 }
 
 function parseFolder(data: unknown) {
@@ -283,6 +298,35 @@ export async function getPickerPayload() {
     folders: listBrowserFolders(),
     snippets: listBrowserSnippets(),
   } satisfies PickerPayload;
+}
+
+export async function prepareQuickCaptureFromClipboard() {
+  if (isTauriRuntime()) {
+    await invokeCommand(desktopCommands.prepareQuickCaptureFromClipboard);
+  }
+}
+
+export async function takeQuickCaptureDraft() {
+  if (isTauriRuntime()) {
+    const draft = await invokeCommand<unknown | null>(desktopCommands.takeQuickCaptureDraft);
+    return draft === null ? null : quickCaptureDraftSchema.parse(draft);
+  }
+
+  if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+    return null;
+  }
+
+  const content = await navigator.clipboard.readText();
+  if (!content.trim()) {
+    return null;
+  }
+
+  return {
+    title: suggestQuickCaptureTitle(content),
+    content,
+    matchedFolderId: null,
+    focusedApp: null,
+  } satisfies QuickCaptureDraft;
 }
 
 export async function pasteSnippet(content: string) {

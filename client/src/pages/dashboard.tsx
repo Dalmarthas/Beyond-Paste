@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   Folder as FolderIcon,
   Hash,
@@ -31,7 +32,9 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { useEntries } from "@/hooks/use-entries";
 import { useFolders } from "@/hooks/use-folders";
 import { useSettings } from "@/hooks/use-settings";
-import type { Folder, Snippet } from "@shared/schema";
+import { takeQuickCaptureDraft } from "@/lib/desktop";
+import { desktopEvents } from "@shared/routes";
+import type { Folder, QuickCaptureDraft, Snippet } from "@shared/schema";
 
 function formatHotkeyLabel(hotkey: string) {
   return hotkey
@@ -40,12 +43,25 @@ function formatHotkeyLabel(hotkey: string) {
     .join(" + ");
 }
 
+function getLibraryWindow() {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
+    return null;
+  }
+
+  try {
+    return getCurrentWebviewWindow();
+  } catch {
+    return null;
+  }
+}
+
 export default function Dashboard() {
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderToEdit, setFolderToEdit] = useState<Folder | undefined>(undefined);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<Snippet | undefined>(undefined);
+  const [quickCaptureDraft, setQuickCaptureDraft] = useState<QuickCaptureDraft | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
   const folders = useFolders();
@@ -56,6 +72,65 @@ export default function Dashboard() {
     () => folders.data?.find((folder) => folder.id === selectedFolderId) ?? null,
     [folders.data, selectedFolderId],
   );
+
+  useEffect(() => {
+    let mounted = true;
+    const libraryWindow = getLibraryWindow();
+    const cleanup: Array<() => void> = [];
+
+    async function syncQuickCaptureDraft() {
+      const draft = await takeQuickCaptureDraft();
+      if (!mounted || !draft) {
+        return;
+      }
+
+      setEntryToEdit(undefined);
+      setQuickCaptureDraft(draft);
+      if (draft.matchedFolderId !== null) {
+        setSelectedFolderId(draft.matchedFolderId);
+      }
+      setEntryDialogOpen(true);
+    }
+
+    if (!libraryWindow) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const activeWindow = libraryWindow;
+    void syncQuickCaptureDraft();
+
+    async function bind() {
+      cleanup.push(
+        await activeWindow.listen(desktopEvents.quickCaptureReady, () => {
+          void syncQuickCaptureDraft();
+        }),
+      );
+    }
+
+    void bind();
+
+    return () => {
+      mounted = false;
+      for (const unlisten of cleanup) {
+        unlisten();
+      }
+    };
+  }, []);
+
+  function openNewEntryDialog() {
+    setEntryToEdit(undefined);
+    setQuickCaptureDraft(null);
+    setEntryDialogOpen(true);
+  }
+
+  function handleEntryDialogOpenChange(open: boolean) {
+    setEntryDialogOpen(open);
+    if (!open) {
+      setQuickCaptureDraft(null);
+    }
+  }
 
   const sidebarStyle = {
     "--sidebar-width": "18rem",
@@ -165,12 +240,7 @@ export default function Dashboard() {
                 <Settings2 className="mr-2 h-4 w-4" />
                 Settings
               </Button>
-              <Button
-                onClick={() => {
-                  setEntryToEdit(undefined);
-                  setEntryDialogOpen(true);
-                }}
-              >
+              <Button onClick={openNewEntryDialog}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Snippet
               </Button>
@@ -192,6 +262,7 @@ export default function Dashboard() {
                       key={entry.id}
                       entry={entry}
                       onEdit={(value) => {
+                        setQuickCaptureDraft(null);
                         setEntryToEdit(value);
                         setEntryDialogOpen(true);
                       }}
@@ -222,12 +293,7 @@ export default function Dashboard() {
                     <Plus className="mr-2 h-4 w-4" />
                     New Folder
                   </Button>
-                  <Button
-                    onClick={() => {
-                      setEntryToEdit(undefined);
-                      setEntryDialogOpen(true);
-                    }}
-                  >
+                  <Button onClick={openNewEntryDialog}>
                     <Plus className="mr-2 h-4 w-4" />
                     New Snippet
                   </Button>
@@ -250,11 +316,14 @@ export default function Dashboard() {
       />
       <EntryDialog
         open={entryDialogOpen}
-        onOpenChange={setEntryDialogOpen}
+        onOpenChange={handleEntryDialogOpenChange}
         entryToEdit={entryToEdit}
         defaultFolderId={selectedFolderId ?? undefined}
+        quickCaptureDraft={quickCaptureDraft}
       />
       <SettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
     </SidebarProvider>
   );
 }
+
+

@@ -11,10 +11,13 @@ export const desktopCommands = {
   updateSettings: "update_settings",
   listRunningApps: "list_running_apps",
   getPickerPayload: "get_picker_payload",
+  prepareQuickCaptureFromClipboard: "prepare_quick_capture_from_clipboard",
+  takeQuickCaptureDraft: "take_quick_capture_draft",
   pasteSnippet: "paste_snippet",
   hidePicker: "hide_picker",
 } as const;
 
 export const desktopEvents = {
   pickerOpen: "picker://open",
+  quickCaptureReady: "quick-capture://ready",
 } as const;

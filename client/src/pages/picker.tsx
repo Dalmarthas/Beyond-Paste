@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { TauriEvent } from "@tauri-apps/api/event";
+import { Plus } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
-import { getPickerPayload, hidePicker, pasteSnippet } from "@/lib/desktop";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { getPickerPayload, hidePicker, pasteSnippet, prepareQuickCaptureFromClipboard } from "@/lib/desktop";
 import { desktopEvents } from "@shared/routes";
 import type { PickerPayload, Snippet } from "@shared/schema";
 
@@ -18,7 +21,9 @@ export default function PickerPage() {
   const [payload, setPayload] = useState<PickerPayload | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreparingEntry, setIsPreparingEntry] = useState(false);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -98,7 +103,7 @@ export default function PickerPage() {
         return;
       }
 
-      if (visibleSnippets.length === 0 || isSubmitting) {
+      if (visibleSnippets.length === 0 || isSubmitting || isPreparingEntry) {
         return;
       }
 
@@ -122,7 +127,7 @@ export default function PickerPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isSubmitting, selectedIndex, visibleSnippets]);
+  }, [isPreparingEntry, isSubmitting, selectedIndex, visibleSnippets]);
 
   async function handleSelect(snippet: Snippet) {
     setIsSubmitting(true);
@@ -133,12 +138,38 @@ export default function PickerPage() {
     }
   }
 
+  async function handleAddEntry() {
+    setIsPreparingEntry(true);
+    try {
+      await prepareQuickCaptureFromClipboard();
+    } catch (error) {
+      toast({
+        title: "Clipboard capture failed",
+        description: error instanceof Error ? error.message : "Copy some text first, then try Add Entry again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreparingEntry(false);
+    }
+  }
+
   return (
     <div className="h-screen overflow-hidden bg-transparent">
       <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-white/6 bg-[#030712]/95 shadow-[0_24px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5 border-b border-white/5 px-2.5 py-1.5">
           <BrandLogo className="h-4 shrink-0" />
           <div className="font-display text-[9px] font-semibold uppercase tracking-[0.2em] text-white/78">Beyond Paste</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleAddEntry()}
+            disabled={isSubmitting || isPreparingEntry}
+            className="ml-auto h-7 rounded-full border border-white/10 bg-white/[0.05] px-2.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/80 hover:bg-white/[0.1]"
+          >
+            <Plus className="h-3 w-3" />
+            {isPreparingEntry ? "Opening..." : "Add Entry"}
+          </Button>
         </div>
 
         <div className="custom-scrollbar flex-1 overflow-y-auto px-1.5 py-1.5">
@@ -155,7 +186,7 @@ export default function PickerPage() {
                     type="button"
                     onMouseEnter={() => setSelectedIndex(index)}
                     onClick={() => void handleSelect(snippet)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isPreparingEntry}
                     className={[
                       "w-full rounded-lg border px-2.5 py-2 text-left outline-none transition-all",
                       isSelected

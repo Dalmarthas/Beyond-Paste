@@ -42,6 +42,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 const LIBRARY_LABEL: &str = "library";
 const PICKER_LABEL: &str = "picker";
 const PICKER_OPEN_EVENT: &str = "picker://open";
+const QUICK_CAPTURE_READY_EVENT: &str = "quick-capture://ready";
 const MENU_OPEN_LIBRARY_ID: &str = "open-library";
 const MENU_QUIT_ID: &str = "quit";
 const DEFAULT_HOTKEY: &str = "ctrl+shift+space";
@@ -117,6 +118,15 @@ struct PickerPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct QuickCaptureDraft {
+    title: String,
+    content: String,
+    matched_folder_id: Option<i64>,
+    focused_app: Option<RunningApp>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PasteResult {
     success: bool,
     used_manual_fallback: bool,
@@ -151,6 +161,7 @@ struct PickerSession {
 struct AppState {
     db_path: PathBuf,
     picker_session: Mutex<Option<PickerSession>>,
+    quick_capture_draft: Mutex<Option<QuickCaptureDraft>>,
     quitting: AtomicBool,
 }
 
@@ -179,6 +190,7 @@ pub fn run() {
             app.manage(AppState {
                 db_path: db_path.clone(),
                 picker_session: Mutex::new(None),
+                quick_capture_draft: Mutex::new(None),
                 quitting: AtomicBool::new(false),
             });
 
@@ -202,6 +214,8 @@ pub fn run() {
             update_settings,
             list_running_apps,
             get_picker_payload,
+            prepare_quick_capture_from_clipboard,
+            take_quick_capture_draft,
             paste_snippet,
             hide_picker,
         ])
@@ -754,6 +768,64 @@ fn get_picker_payload(state: State<'_, AppState>) -> Result<PickerPayload, Strin
 }
 
 #[tauri::command]
+fn prepare_quick_capture_from_clipboard(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    let context = {
+        let session = state
+            .picker_session
+            .lock()
+            .map_err(|_| "Failed to lock picker state.".to_string())?;
+        session
+            .as_ref()
+            .map(|item| item.context.clone())
+            .unwrap_or_default()
+    };
+
+    let mut clipboard = Clipboard::new().map_err(|error| error.to_string())?;
+    let content = clipboard
+        .get_text()
+        .map_err(|_| "Clipboard does not contain text. Copy some text first.".to_string())?;
+
+    if content.trim().is_empty() {
+        return Err("Clipboard does not contain text. Copy some text first.".to_string());
+    }
+
+    let draft = QuickCaptureDraft {
+        title: suggest_snippet_title(&content),
+        content,
+        matched_folder_id: context.matched_folder_id,
+        focused_app: context.focused_app,
+    };
+
+    {
+        let mut pending = state
+            .quick_capture_draft
+            .lock()
+            .map_err(|_| "Failed to lock quick capture draft.".to_string())?;
+        *pending = Some(draft);
+    }
+
+    if let Some(window) = app.get_webview_window(PICKER_LABEL) {
+        let _ = window.hide();
+    }
+
+    show_library_window(&app)?;
+    app.emit_to(LIBRARY_LABEL, QUICK_CAPTURE_READY_EVENT, true)
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn take_quick_capture_draft(state: State<'_, AppState>) -> Result<Option<QuickCaptureDraft>, String> {
+    let mut pending = state
+        .quick_capture_draft
+        .lock()
+        .map_err(|_| "Failed to lock quick capture draft.".to_string())?;
+
+    Ok(pending.take())
+}
+
+#[tauri::command]
 fn hide_picker(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(PICKER_LABEL) {
         let _ = window.hide();
@@ -1084,8 +1156,18 @@ fn send_paste_shortcut() -> bool {
 fn send_paste_shortcut() -> bool {
     false
 }
+fn suggest_snippet_title(content: &str) -> String {
+    let first_line = content
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("New snippet");
 
+    let mut title = first_line.chars().take(60).collect::<String>();
+    if first_line.chars().count() > 60 {
+        title.truncate(57);
+        title.push_str("...");
+    }
 
-
-
-
+    title
+}

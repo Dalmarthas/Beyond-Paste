@@ -8,16 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateEntry, useUpdateEntry } from "@/hooks/use-entries";
 import { useFolders } from "@/hooks/use-folders";
 import { useToast } from "@/hooks/use-toast";
-import type { Snippet } from "@shared/schema";
+import type { QuickCaptureDraft, Snippet } from "@shared/schema";
 
 interface EntryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entryToEdit?: Snippet;
   defaultFolderId?: number;
+  quickCaptureDraft?: QuickCaptureDraft | null;
 }
 
-export function EntryDialog({ open, onOpenChange, entryToEdit, defaultFolderId }: EntryDialogProps) {
+export function EntryDialog({ open, onOpenChange, entryToEdit, defaultFolderId, quickCaptureDraft }: EntryDialogProps) {
   const { data: folders } = useFolders();
   const createEntry = useCreateEntry();
   const updateEntry = useUpdateEntry();
@@ -39,10 +40,11 @@ export function EntryDialog({ open, onOpenChange, entryToEdit, defaultFolderId }
       return;
     }
 
-    setTitle("");
-    setContent("");
-    setFolderId(defaultFolderId ? defaultFolderId.toString() : folders?.[0]?.id?.toString() ?? "");
-  }, [defaultFolderId, entryToEdit, folders, open]);
+    const initialFolderId = quickCaptureDraft?.matchedFolderId ?? defaultFolderId ?? folders?.[0]?.id;
+    setTitle(quickCaptureDraft?.title ?? "");
+    setContent(quickCaptureDraft?.content ?? "");
+    setFolderId(initialFolderId ? initialFolderId.toString() : "");
+  }, [defaultFolderId, entryToEdit, folders, open, quickCaptureDraft]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -87,6 +89,19 @@ export function EntryDialog({ open, onOpenChange, entryToEdit, defaultFolderId }
         </DialogHeader>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
+          {!entryToEdit && quickCaptureDraft?.focusedApp ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-white/85">
+              <div className="font-medium text-primary/90">
+                Captured from {quickCaptureDraft.focusedApp.displayName}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {quickCaptureDraft.matchedFolderId
+                  ? "The folder linked to this app was selected automatically."
+                  : "No folder is linked to this app yet. Choose a folder below, or create one for this app first."}
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="entry-folder">Folder</Label>
             <Select value={folderId} onValueChange={setFolderId}>
