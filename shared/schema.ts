@@ -43,6 +43,13 @@ export const pickerPayloadSchema = z.object({
   snippets: z.array(snippetSchema),
 });
 
+export const quickCaptureDraftSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+  matchedFolderId: z.number().int().nullable(),
+  focusedApp: runningAppSchema.nullable(),
+});
+
 export const pasteResultSchema = z.object({
   success: z.boolean(),
   usedManualFallback: z.boolean(),
@@ -82,6 +89,7 @@ export type AppSettings = z.infer<typeof settingsSchema>;
 export type RunningApp = z.infer<typeof runningAppSchema>;
 export type PickerContext = z.infer<typeof pickerContextSchema>;
 export type PickerPayload = z.infer<typeof pickerPayloadSchema>;
+export type QuickCaptureDraft = z.infer<typeof quickCaptureDraftSchema>;
 export type PasteResult = z.infer<typeof pasteResultSchema>;
 export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
 export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
